@@ -1,6 +1,6 @@
 export interface InbodyRecord {
   date: string;
-  [key: string]: string | number;
+  [key: string]: string | number | null;
 }
 
 export interface ParsedCsvData {

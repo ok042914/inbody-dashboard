@@ -25,7 +25,7 @@ function rowToRecord(row: DbRow): InbodyRecord {
   for (const [dbCol, csvCol] of Object.entries(DB_TO_CSV)) {
     if (dbCol === "measured_at") continue;
     const val = row[dbCol];
-    record[csvCol] = typeof val === "number" ? val : val != null ? Number(val) : 0;
+    record[csvCol] = typeof val === "number" ? val : val != null ? Number(val) : null;
   }
   return record;
 }

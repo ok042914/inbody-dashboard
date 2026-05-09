@@ -23,6 +23,7 @@ interface Props {
   records: InbodyRecord[];
   selectedMetrics: Set<string>;
   dateColumn: string;
+  marginPct?: number; // 0 | 10 | 20
 }
 
 interface TooltipEntry {
@@ -32,15 +33,23 @@ interface TooltipEntry {
   payload: Record<string, unknown>;
 }
 
-function calcDomain(records: InbodyRecord[], metrics: string[]): [number, number] {
+function calcDomain(
+  records: InbodyRecord[],
+  metrics: string[],
+  marginPct = 10
+): [number, number] {
   const values = records
     .flatMap((r) => metrics.map((m) => r[m]))
     .filter((v): v is number => typeof v === "number" && isFinite(v));
   if (values.length === 0) return [0, 1];
   const min = Math.min(...values);
   const max = Math.max(...values);
-  const pad = (max - min) * 0.05 || Math.abs(min) * 0.05 || 0.5;
-  return [parseFloat((min - pad).toFixed(3)), parseFloat((max + pad).toFixed(3))];
+  const range = max - min || Math.abs(min) || 1;
+  const pad = range * (marginPct / 100);
+  return [
+    parseFloat((min - pad).toFixed(3)),
+    parseFloat((max + pad).toFixed(3)),
+  ];
 }
 
 function metricStats(records: InbodyRecord[], metric: string) {
@@ -57,7 +66,7 @@ function normalize(v: number, min: number, max: number): number {
   return max === min ? 50 : ((v - min) / (max - min)) * 100;
 }
 
-export function InbodyChart({ records, selectedMetrics }: Props) {
+export function InbodyChart({ records, selectedMetrics, marginPct = 10 }: Props) {
   if (selectedMetrics.size === 0) {
     return (
       <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
@@ -92,12 +101,12 @@ export function InbodyChart({ records, selectedMetrics }: Props) {
     return row;
   });
 
-  // Y軸ドメイン
+  // Y軸ドメイン（正規化モードはmarginPctを%として適用）
   const leftDomain: [number, number] = isNormalized
-    ? [0, 100]
-    : calcDomain(records, [metrics[0]]);
+    ? [0 - marginPct, 100 + marginPct]
+    : calcDomain(records, [metrics[0]], marginPct);
   const rightDomain: [number, number] | undefined = twoAxes
-    ? calcDomain(records, [metrics[1]])
+    ? calcDomain(records, [metrics[1]], marginPct)
     : undefined;
 
   // ツールチップ：常に実値を表示

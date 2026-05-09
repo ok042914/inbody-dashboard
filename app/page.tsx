@@ -34,6 +34,7 @@ export default function Home() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [graphMargin, setGraphMargin] = useState<0 | 10 | 20>(10);
 
   useEffect(() => {
     fetchAllMeasurements()
@@ -89,14 +90,31 @@ export default function Home() {
         {/* 1. グラフ */}
         {csvData && (
           <Card>
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-base">折れ線グラフ</CardTitle>
+              <div className="flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground mr-1">上下余白</span>
+                {([0, 10, 20] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setGraphMargin(m)}
+                    className={`px-2 py-1 rounded border transition-colors ${
+                      graphMargin === m
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background border-border hover:bg-muted"
+                    }`}
+                  >
+                    {m}%
+                  </button>
+                ))}
+              </div>
             </CardHeader>
             <CardContent>
               <InbodyChart
                 records={visibleRecords}
                 selectedMetrics={selectedMetrics}
                 dateColumn={csvData.dateColumn}
+                marginPct={graphMargin}
               />
             </CardContent>
           </Card>
