@@ -4,7 +4,12 @@ import { useState, useCallback } from "react";
 import { CsvUploader } from "@/components/CsvUploader";
 import { MetricSelector } from "@/components/MetricSelector";
 import { RangeSlider } from "@/components/RangeSlider";
-import { InbodyChart } from "@/components/InbodyChart";
+import dynamic from "next/dynamic";
+
+const InbodyChart = dynamic(
+  () => import("@/components/InbodyChart").then((m) => ({ default: m.InbodyChart })),
+  { ssr: false, loading: () => <div className="h-[400px] flex items-center justify-center text-muted-foreground text-sm">グラフを読み込み中...</div> }
+);
 import { DataTable } from "@/components/DataTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { parseCsv } from "@/lib/csvParser";

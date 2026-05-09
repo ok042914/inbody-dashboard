@@ -6,6 +6,8 @@ export function parseCsv(file: File): Promise<ParsedCsvData> {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
+      encoding: "UTF-8",
+      dynamicTyping: false,
       complete: (results) => {
         const headers = results.meta.fields ?? [];
         if (headers.length < 2) {
@@ -20,7 +22,7 @@ export function parseCsv(file: File): Promise<ParsedCsvData> {
           .map((row) => {
             const record: InbodyRecord = { date: row[dateColumn] ?? "" };
             for (const col of metricColumns) {
-              const raw = row[col]?.trim() ?? "";
+              const raw = row[col]?.trim().replace(/,/g, "") ?? "";
               const num = parseFloat(raw);
               record[col] = isNaN(num) ? raw : num;
             }

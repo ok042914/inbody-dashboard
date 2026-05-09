@@ -88,7 +88,11 @@ export function InbodyChart({ records, selectedMetrics, dateColumn }: Props) {
           <Line
             key={metric}
             type="monotone"
-            dataKey={metric}
+            dataKey={(row: Record<string, unknown>) => {
+              const v = row[metric];
+              return typeof v === "number" ? v : null;
+            }}
+            name={metric}
             stroke={COLORS[i % COLORS.length]}
             strokeWidth={2}
             dot={{ r: 3 }}
