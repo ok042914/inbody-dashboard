@@ -37,10 +37,12 @@ export function DataTable({ records, headers, dateColumn }: Props) {
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr>
-              {headers.map((h) => (
+              {headers.map((h, i) => (
                 <th
                   key={h}
-                  className="sticky top-0 z-10 bg-muted/90 backdrop-blur-sm px-2 py-2 text-left text-xs font-medium whitespace-nowrap border-b border-border"
+                  className={`sticky top-0 z-10 bg-muted/90 backdrop-blur-sm px-2 py-2 text-left text-xs font-medium whitespace-nowrap border-b border-border${
+                    i === 0 ? " left-0 z-20" : ""
+                  }`}
                 >
                   {h}
                 </th>
@@ -53,8 +55,13 @@ export function DataTable({ records, headers, dateColumn }: Props) {
                 key={i}
                 className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors"
               >
-                {headers.map((h) => (
-                  <td key={h} className="px-2 py-1.5 whitespace-nowrap">
+                {headers.map((h, j) => (
+                  <td
+                    key={h}
+                    className={`px-2 py-1.5 whitespace-nowrap${
+                      j === 0 ? " sticky left-0 bg-background/95 backdrop-blur-sm z-10" : ""
+                    }`}
+                  >
                     {cellValue(row, h)}
                   </td>
                 ))}

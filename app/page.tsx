@@ -120,25 +120,7 @@ export default function Home() {
           </Card>
         )}
 
-        {/* 2. データテーブル */}
-        {csvData && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">
-                測定データ一覧（直近 {displayCount} 件）
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                records={visibleRecords}
-                headers={csvData.headers}
-                dateColumn={csvData.dateColumn}
-              />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* 3. 表示設定（指標選択・スライダー） */}
+        {/* 2. 表示設定（指標選択・スライダー） */}
         {csvData && (
           <Card>
             <CardHeader className="pb-3">
@@ -156,6 +138,24 @@ export default function Home() {
                 onChange={setDisplayCount}
                 oldestDate={oldestRecord?.date ?? ""}
                 latestDate={latestRecord?.date ?? ""}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 3. データテーブル */}
+        {csvData && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">
+                測定データ一覧（直近 {displayCount} 件）
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DataTable
+                records={visibleRecords}
+                headers={csvData.headers}
+                dateColumn={csvData.dateColumn}
               />
             </CardContent>
           </Card>

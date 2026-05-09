@@ -4,14 +4,23 @@ import type { InbodyRecord, ParsedCsvData } from "./types";
 
 type DbRow = Record<string, number | string | null>;
 
+function normalizeName(s: string): string {
+  return s.normalize("NFKC").trim();
+}
+
 function recordToRow(record: InbodyRecord): DbRow {
-  const row: DbRow = {
-    measured_at: record.date,
-  };
+  const row: DbRow = { measured_at: record.date };
+
+  // 全角/半角の差異を吸収するため正規化キーで検索
+  const normalizedRecord: Record<string, number | string | null> = {};
+  for (const [k, v] of Object.entries(record)) {
+    normalizedRecord[normalizeName(k)] = v as number | string | null;
+  }
+
   for (const csvCol of METRIC_HEADERS) {
     const dbCol = CSV_TO_DB[csvCol];
     if (dbCol) {
-      const val = record[csvCol];
+      const val = normalizedRecord[normalizeName(csvCol)];
       row[dbCol] = typeof val === "number" ? val : null;
     }
   }
