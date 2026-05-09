@@ -1,39 +1,62 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { CsvUploader } from "@/components/CsvUploader";
 import { MetricSelector } from "@/components/MetricSelector";
 import { RangeSlider } from "@/components/RangeSlider";
+import { DataTable } from "@/components/DataTable";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { parseCsv } from "@/lib/csvParser";
+import { fetchAllMeasurements, upsertMeasurements } from "@/lib/supabaseStorage";
+import { METRIC_HEADERS } from "@/lib/columnMap";
+import type { ParsedCsvData } from "@/lib/types";
 import dynamic from "next/dynamic";
 
 const InbodyChart = dynamic(
   () => import("@/components/InbodyChart").then((m) => ({ default: m.InbodyChart })),
   { ssr: false, loading: () => <div className="h-[400px] flex items-center justify-center text-muted-foreground text-sm">グラフを読み込み中...</div> }
 );
-import { DataTable } from "@/components/DataTable";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { parseCsv } from "@/lib/csvParser";
-import type { ParsedCsvData } from "@/lib/types";
 
 export default function Home() {
   const [csvData, setCsvData] = useState<ParsedCsvData | null>(null);
-  const [selectedMetrics, setSelectedMetrics] = useState<Set<string>>(new Set());
+  const [selectedMetrics, setSelectedMetrics] = useState<Set<string>>(
+    new Set(METRIC_HEADERS.slice(0, 8))
+  );
   const [displayCount, setDisplayCount] = useState<number>(3);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchAllMeasurements()
+      .then((data) => {
+        if (data) {
+          setCsvData(data);
+          setDisplayCount(data.records.length);
+        }
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setIsLoading(false));
+  }, []);
 
   const handleFile = useCallback(async (file: File) => {
-    setIsLoading(true);
+    setIsSaving(true);
     setError(null);
+    setSaveStatus(null);
     try {
-      const data = await parseCsv(file);
-      setCsvData(data);
-      setSelectedMetrics(new Set(data.metricColumns));
-      setDisplayCount(data.records.length);
+      const parsed = await parseCsv(file);
+      await upsertMeasurements(parsed.records);
+      const latest = await fetchAllMeasurements();
+      if (latest) {
+        setCsvData(latest);
+        setDisplayCount(latest.records.length);
+      }
+      setSaveStatus(`${parsed.records.length} 件を保存しました`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "読み込みに失敗しました");
+      setError(e instanceof Error ? e.message : "保存に失敗しました");
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   }, []);
 
@@ -49,7 +72,33 @@ export default function Home() {
           <p className="text-sm text-muted-foreground mt-1">体組成計の測定データを可視化します</p>
         </div>
 
-        <CsvUploader onParsed={handleFile} isLoading={isLoading} error={error} />
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">測定データを追加</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CsvUploader
+              onParsed={handleFile}
+              isLoading={isSaving}
+              error={error}
+            />
+            {saveStatus && (
+              <p className="text-sm text-green-600 mt-2">{saveStatus}</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {isLoading && (
+          <div className="text-center text-sm text-muted-foreground py-12">
+            データを読み込み中...
+          </div>
+        )}
+
+        {!isLoading && !csvData && (
+          <div className="text-center text-sm text-muted-foreground py-12">
+            CSVをアップロードして測定データを登録してください
+          </div>
+        )}
 
         {csvData && (
           <>
