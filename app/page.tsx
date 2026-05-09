@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { CsvUploader } from "@/components/CsvUploader";
+import { StorageUploader } from "@/components/StorageUploader";
 import { MetricSelector } from "@/components/MetricSelector";
 import { RangeSlider } from "@/components/RangeSlider";
 import { DataTable } from "@/components/DataTable";
@@ -27,7 +28,7 @@ const InbodyChart = dynamic(
 export default function Home() {
   const [csvData, setCsvData] = useState<ParsedCsvData | null>(null);
   const [selectedMetrics, setSelectedMetrics] = useState<Set<string>>(
-    new Set(METRIC_HEADERS.slice(0, 8))
+    new Set(METRIC_HEADERS.slice(0, 2))
   );
   const [displayCount, setDisplayCount] = useState<number>(3);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,6 +47,50 @@ export default function Home() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setIsLoading(false));
+  }, []);
+
+  const handleStorageImport = useCallback(async () => {
+    try {
+      const latest = await fetchAllMeasurements();
+      if (latest) {
+        setCsvData(latest);
+        setDisplayCount(latest.records.length);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "データ再取得に失敗しました");
+    }
+  }, []);
+
+  const [isDriveChecking, setIsDriveChecking] = useState(false);
+  const [driveStatus, setDriveStatus] = useState<string | null>(null);
+
+  const handleDriveCheck = useCallback(async () => {
+    setIsDriveChecking(true);
+    setDriveStatus(null);
+    try {
+      const res = await fetch("/api/trigger-import", { method: "POST" });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error ?? "エラーが発生しました");
+
+      if (result.file_count === 0) {
+        setDriveStatus("新しいファイルはありませんでした");
+      } else {
+        setDriveStatus(
+          result.file_count + " 件処理: 追加=" + result.inserted +
+          ", スキップ=" + result.skipped +
+          (result.error_count > 0 ? ", エラー=" + result.error_count : "")
+        );
+        const latest = await fetchAllMeasurements();
+        if (latest) {
+          setCsvData(latest);
+          setDisplayCount(latest.records.length);
+        }
+      }
+    } catch (e) {
+      setDriveStatus(e instanceof Error ? e.message : "エラーが発生しました");
+    } finally {
+      setIsDriveChecking(false);
+    }
   }, []);
 
   const handleFile = useCallback(async (file: File) => {
@@ -77,7 +122,10 @@ export default function Home() {
       <div className="max-w-5xl mx-auto space-y-6">
 
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Inbody データダッシュボード</h1>
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">Inbody データダッシュボード</h1>
+            <span className="text-xs text-muted-foreground">v{process.env.NEXT_PUBLIC_APP_VERSION}</span>
+          </div>
           <p className="text-sm text-muted-foreground mt-1">体組成計の測定データを可視化します</p>
         </div>
 
@@ -172,15 +220,36 @@ export default function Home() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base">測定データを追加</CardTitle>
           </CardHeader>
-          <CardContent>
-            <CsvUploader
-              onParsed={handleFile}
-              isLoading={isSaving}
-              error={error}
-            />
-            {saveStatus && (
-              <p className="text-sm text-green-600 mt-2">{saveStatus}</p>
-            )}
+          <CardContent className="space-y-6">
+            <div>
+              <p className="text-sm text-muted-foreground mb-2">ドラッグ&amp;ドロップで直接取り込み</p>
+              <CsvUploader
+                onParsed={handleFile}
+                isLoading={isSaving}
+                error={error}
+              />
+              {saveStatus && (
+                <p className="text-sm text-green-600 mt-2">{saveStatus}</p>
+              )}
+            </div>
+            <div className="border-t pt-6">
+              <StorageUploader onImported={handleStorageImport} />
+            </div>
+            <div className="border-t pt-6">
+              <p className="text-sm text-muted-foreground mb-2">
+                Google Drive の「InBody Import」フォルダを確認してDBに取り込みます
+              </p>
+              <button
+                onClick={handleDriveCheck}
+                disabled={isDriveChecking}
+                className="px-4 py-2 rounded border border-border bg-background text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                {isDriveChecking ? "確認中..." : "Drive フォルダを確認"}
+              </button>
+              {driveStatus && (
+                <p className="text-sm text-muted-foreground mt-2">{driveStatus}</p>
+              )}
+            </div>
           </CardContent>
         </Card>
 
