@@ -67,8 +67,8 @@ export default function Home() {
                   total={csvData.records.length}
                   value={displayCount}
                   onChange={setDisplayCount}
-                  oldestDate={(oldestRecord?.[csvData.dateColumn] as string) ?? ""}
-                  latestDate={(latestRecord?.[csvData.dateColumn] as string) ?? ""}
+                  oldestDate={oldestRecord?.date ?? ""}
+                  latestDate={latestRecord?.date ?? ""}
                 />
               </CardContent>
             </Card>

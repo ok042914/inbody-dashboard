@@ -20,7 +20,8 @@ export function parseCsv(file: File): Promise<ParsedCsvData> {
 
         const records: InbodyRecord[] = (results.data as Record<string, string>[])
           .map((row) => {
-            const record: InbodyRecord = { date: row[dateColumn] ?? "" };
+            const rawDate = row[dateColumn]?.trim() ?? "";
+            const record: InbodyRecord = { date: normalizeDate(rawDate) };
             for (const col of metricColumns) {
               const raw = row[col]?.trim().replace(/,/g, "") ?? "";
               const num = parseFloat(raw);
@@ -39,6 +40,11 @@ export function parseCsv(file: File): Promise<ParsedCsvData> {
       error: (err) => reject(new Error(err.message)),
     });
   });
+}
+
+function normalizeDate(dateStr: string): string {
+  // "2026/03/27 21:06" → "2026-03-27T21:06" (ISO形式に変換して全ブラウザで解析可能に)
+  return dateStr.replace(/\//g, "-").replace(" ", "T");
 }
 
 export function formatDate(dateStr: string): string {

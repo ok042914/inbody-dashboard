@@ -38,7 +38,7 @@ export function DataTable({ records, headers, dateColumn }: Props) {
               {headers.map((h) => (
                 <TableCell key={h} className="text-sm whitespace-nowrap">
                   {h === dateColumn
-                    ? formatDate(row[dateColumn] as string)
+                    ? formatDate(row.date)
                     : typeof row[h] === "number"
                     ? (row[h] as number).toFixed(1)
                     : String(row[h])}

@@ -68,7 +68,7 @@ export function InbodyChart({ records, selectedMetrics, dateColumn }: Props) {
   const metrics = Array.from(selectedMetrics);
   const chartData = records.map((r) => ({
     ...r,
-    date: formatDate(r[dateColumn] as string),
+    date: formatDate(r.date),
   }));
 
   return (
