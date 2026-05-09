@@ -14,7 +14,14 @@ import dynamic from "next/dynamic";
 
 const InbodyChart = dynamic(
   () => import("@/components/InbodyChart").then((m) => ({ default: m.InbodyChart })),
-  { ssr: false, loading: () => <div className="h-[400px] flex items-center justify-center text-muted-foreground text-sm">グラフを読み込み中...</div> }
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[400px] flex items-center justify-center text-muted-foreground text-sm">
+        グラフを読み込み中...
+      </div>
+    ),
+  }
 );
 
 export default function Home() {
@@ -67,11 +74,82 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-muted/30 p-4 md:p-8">
       <div className="max-w-5xl mx-auto space-y-6">
+
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Inbody データダッシュボード</h1>
           <p className="text-sm text-muted-foreground mt-1">体組成計の測定データを可視化します</p>
         </div>
 
+        {isLoading && (
+          <div className="text-center text-sm text-muted-foreground py-12">
+            データを読み込み中...
+          </div>
+        )}
+
+        {/* 1. グラフ */}
+        {csvData && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">折れ線グラフ</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <InbodyChart
+                records={visibleRecords}
+                selectedMetrics={selectedMetrics}
+                dateColumn={csvData.dateColumn}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 2. データテーブル */}
+        {csvData && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">
+                測定データ一覧（直近 {displayCount} 件）
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DataTable
+                records={visibleRecords}
+                headers={csvData.headers}
+                dateColumn={csvData.dateColumn}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 3. 表示設定（指標選択・スライダー） */}
+        {csvData && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">表示設定</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <MetricSelector
+                metrics={csvData.metricColumns}
+                selected={selectedMetrics}
+                onChange={setSelectedMetrics}
+              />
+              <RangeSlider
+                total={csvData.records.length}
+                value={displayCount}
+                onChange={setDisplayCount}
+                oldestDate={oldestRecord?.date ?? ""}
+                latestDate={latestRecord?.date ?? ""}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {!isLoading && !csvData && (
+          <div className="text-center text-sm text-muted-foreground py-12">
+            CSVをアップロードして測定データを登録してください
+          </div>
+        )}
+
+        {/* 4. CSVアップロード */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">測定データを追加</CardTitle>
@@ -88,69 +166,6 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        {isLoading && (
-          <div className="text-center text-sm text-muted-foreground py-12">
-            データを読み込み中...
-          </div>
-        )}
-
-        {!isLoading && !csvData && (
-          <div className="text-center text-sm text-muted-foreground py-12">
-            CSVをアップロードして測定データを登録してください
-          </div>
-        )}
-
-        {csvData && (
-          <>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">表示設定</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                <MetricSelector
-                  metrics={csvData.metricColumns}
-                  selected={selectedMetrics}
-                  onChange={setSelectedMetrics}
-                />
-                <RangeSlider
-                  total={csvData.records.length}
-                  value={displayCount}
-                  onChange={setDisplayCount}
-                  oldestDate={oldestRecord?.date ?? ""}
-                  latestDate={latestRecord?.date ?? ""}
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">折れ線グラフ</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <InbodyChart
-                  records={visibleRecords}
-                  selectedMetrics={selectedMetrics}
-                  dateColumn={csvData.dateColumn}
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">
-                  測定データ一覧（直近 {displayCount} 件）
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <DataTable
-                  records={visibleRecords}
-                  headers={csvData.headers}
-                  dateColumn={csvData.dateColumn}
-                />
-              </CardContent>
-            </Card>
-          </>
-        )}
       </div>
     </main>
   );
