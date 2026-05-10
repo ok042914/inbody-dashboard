@@ -25,9 +25,7 @@ interface Props {
   selectedMetrics: Set<string>;
   dateColumn: string;
   marginPct?: number;
-  /** クリックされた日付を生の date 文字列で通知 */
   onDateSelect?: (date: string) => void;
-  /** 選択中の生 date 文字列（縦線を描画） */
   highlightDate?: string | null;
 }
 
@@ -36,6 +34,18 @@ interface TooltipEntry {
   value: number | string;
   color: string;
   payload: Record<string, unknown>;
+}
+
+/** "2026-05-09T15:44:00" → ローカル時刻のタイムスタンプ */
+function dateStrToTs(dateStr: string): number {
+  const tIdx = dateStr.indexOf("T");
+  if (tIdx === -1) {
+    const [y, mo, d] = dateStr.slice(0, 10).split("-").map(Number);
+    return new Date(y, mo - 1, d).getTime();
+  }
+  const [y, mo, d] = dateStr.slice(0, tIdx).split("-").map(Number);
+  const [h, mi, s = 0] = dateStr.slice(tIdx + 1, tIdx + 9).split(":").map(Number);
+  return new Date(y, mo - 1, d, h, mi, s).getTime();
 }
 
 function calcDomain(
@@ -62,9 +72,7 @@ function metricStats(records: InbodyRecord[], metric: string) {
     .map((r) => r[metric])
     .filter((v): v is number => typeof v === "number" && isFinite(v));
   if (values.length === 0) return { min: 0, max: 1 };
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  return { min, max };
+  return { min: Math.min(...values), max: Math.max(...values) };
 }
 
 function normalize(v: number, min: number, max: number): number {
@@ -84,21 +92,21 @@ export function InbodyChart({ records, selectedMetrics, marginPct = 10, onDateSe
   const twoAxes = metrics.length === 2;
   const isNormalized = metrics.length >= 3;
 
-  // 各指標の実値min/max
   const statsMap = Object.fromEntries(
     metrics.map((m) => [m, metricStats(records, m)])
   );
 
-  // chartDataには実値(__orig)・生date(__rawDate)・描画値を持たせる
   const chartData = records.map((r) => {
-    const row: Record<string, unknown> = { date: formatDate(r.date), __rawDate: r.date };
+    const row: Record<string, unknown> = {
+      date: formatDate(r.date),
+      __rawDate: r.date,
+      dateTs: dateStrToTs(r.date),
+    };
     for (const m of metrics) {
       const v = r[m];
       if (typeof v === "number" && isFinite(v)) {
         row[`${m}__orig`] = v;
-        row[m] = isNormalized
-          ? normalize(v, statsMap[m].min, statsMap[m].max)
-          : v;
+        row[m] = isNormalized ? normalize(v, statsMap[m].min, statsMap[m].max) : v;
       } else {
         row[m] = null;
       }
@@ -106,7 +114,12 @@ export function InbodyChart({ records, selectedMetrics, marginPct = 10, onDateSe
     return row;
   });
 
-  // Y軸ドメイン（正規化モードはmarginPctを%として適用）
+  // タイムスタンプ → 表示ラベルの対応表
+  const tsLabelMap = new Map<number, string>(
+    chartData.map((d) => [d.dateTs as number, d.date as string])
+  );
+  const tickTs = chartData.map((d) => d.dateTs as number);
+
   const leftDomain: [number, number] = isNormalized
     ? [0 - marginPct, 100 + marginPct]
     : calcDomain(records, [metrics[0]], marginPct);
@@ -114,7 +127,6 @@ export function InbodyChart({ records, selectedMetrics, marginPct = 10, onDateSe
     ? calcDomain(records, [metrics[1]], marginPct)
     : undefined;
 
-  // ツールチップ：常に実値を表示
   function CustomTooltip({
     active,
     payload,
@@ -122,12 +134,13 @@ export function InbodyChart({ records, selectedMetrics, marginPct = 10, onDateSe
   }: {
     active?: boolean;
     payload?: TooltipEntry[];
-    label?: string;
+    label?: number;
   }) {
     if (!active || !payload?.length) return null;
+    const dateLabel = typeof label === "number" ? (tsLabelMap.get(label) ?? "") : "";
     return (
       <div className="bg-white border border-border rounded-lg shadow-lg p-3 text-sm max-w-xs">
-        <p className="font-semibold mb-1">{label}</p>
+        <p className="font-semibold mb-1">{dateLabel}</p>
         {payload.map((entry) => {
           const orig = entry.payload[`${entry.name}__orig`];
           const displayVal =
@@ -146,9 +159,9 @@ export function InbodyChart({ records, selectedMetrics, marginPct = 10, onDateSe
     );
   }
 
-  // 選択中の生dateをフォーマット済みlabelに変換（ReferenceLine用）
-  const highlightLabel = highlightDate
-    ? (chartData.find((d) => d.__rawDate === highlightDate)?.date as string | undefined)
+  // 選択日付のタイムスタンプ（ReferenceLine用）
+  const highlightTs = highlightDate
+    ? (chartData.find((d) => d.__rawDate === highlightDate)?.dateTs as number | undefined)
     : undefined;
 
   return (
@@ -165,11 +178,6 @@ export function InbodyChart({ records, selectedMetrics, marginPct = 10, onDateSe
           style={{ cursor: onDateSelect ? "pointer" : undefined }}
           onClick={(state) => {
             if (!onDateSelect) return;
-            const label = state?.activeLabel as string | undefined;
-            if (label) {
-              const found = chartData.find((d) => d.date === label);
-              if (found) { onDateSelect(found.__rawDate as string); return; }
-            }
             const idx = state?.activeIndex;
             if (typeof idx === "number" && chartData[idx]) {
               onDateSelect(chartData[idx].__rawDate as string);
@@ -178,13 +186,18 @@ export function InbodyChart({ records, selectedMetrics, marginPct = 10, onDateSe
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis
-            dataKey="date"
+            dataKey="dateTs"
+            type="number"
+            scale="time"
+            domain={["dataMin", "dataMax"]}
+            ticks={tickTs}
+            tickFormatter={(ts: number) => tsLabelMap.get(ts) ?? ""}
             tick={{ fontSize: 11 }}
             tickLine={false}
             interval="preserveStartEnd"
+            minTickGap={60}
           />
 
-          {/* 左軸 */}
           <YAxis
             yAxisId="left"
             domain={leftDomain}
@@ -196,7 +209,6 @@ export function InbodyChart({ records, selectedMetrics, marginPct = 10, onDateSe
             tickFormatter={isNormalized ? (v: number) => `${Math.round(v)}%` : undefined}
           />
 
-          {/* 右軸（2項目時のみ） */}
           {twoAxes && (
             <YAxis
               yAxisId="right"
@@ -213,10 +225,9 @@ export function InbodyChart({ records, selectedMetrics, marginPct = 10, onDateSe
           <Tooltip content={<CustomTooltip />} />
           <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
 
-          {/* 選択中の日付を示す縦ライン */}
-          {highlightLabel && (
+          {highlightTs !== undefined && (
             <ReferenceLine
-              x={highlightLabel}
+              x={highlightTs}
               yAxisId="left"
               stroke="#f97316"
               strokeWidth={2}
