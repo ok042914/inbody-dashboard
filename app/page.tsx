@@ -143,6 +143,21 @@ export default function Home() {
           <p className="text-sm text-muted-foreground mt-1">体組成計の測定データを可視化します</p>
         </div>
 
+        {/* 表示範囲スライダー */}
+        {csvData && (
+          <Card>
+            <CardContent className="pt-4">
+              <RangeSlider
+                total={csvData.records.length}
+                value={displayRange}
+                onChange={setDisplayRange}
+                startDate={csvData.records[displayRange[0]]?.date ?? ""}
+                endDate={csvData.records[displayRange[1]]?.date ?? ""}
+              />
+            </CardContent>
+          </Card>
+        )}
+
         {isLoading && (
           <div className="text-center text-sm text-muted-foreground py-12">
             データを読み込み中...
@@ -205,18 +220,11 @@ export default function Home() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base">表示設定</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-5">
+            <CardContent>
               <MetricSelector
                 metrics={csvData.metricColumns}
                 selected={selectedMetrics}
                 onChange={setSelectedMetrics}
-              />
-              <RangeSlider
-                total={csvData.records.length}
-                value={displayRange}
-                onChange={setDisplayRange}
-                startDate={csvData.records[displayRange[0]]?.date ?? ""}
-                endDate={csvData.records[displayRange[1]]?.date ?? ""}
               />
             </CardContent>
           </Card>
