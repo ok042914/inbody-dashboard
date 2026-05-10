@@ -8,6 +8,7 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
 import type { InbodyRecord } from "@/lib/types";
@@ -23,7 +24,11 @@ interface Props {
   records: InbodyRecord[];
   selectedMetrics: Set<string>;
   dateColumn: string;
-  marginPct?: number; // 0 | 10 | 20
+  marginPct?: number;
+  /** クリックされた日付を生の date 文字列で通知 */
+  onDateSelect?: (date: string) => void;
+  /** 選択中の生 date 文字列（縦線を描画） */
+  highlightDate?: string | null;
 }
 
 interface TooltipEntry {
@@ -66,7 +71,7 @@ function normalize(v: number, min: number, max: number): number {
   return max === min ? 50 : ((v - min) / (max - min)) * 100;
 }
 
-export function InbodyChart({ records, selectedMetrics, marginPct = 10 }: Props) {
+export function InbodyChart({ records, selectedMetrics, marginPct = 10, onDateSelect, highlightDate }: Props) {
   if (selectedMetrics.size === 0) {
     return (
       <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
@@ -84,9 +89,9 @@ export function InbodyChart({ records, selectedMetrics, marginPct = 10 }: Props)
     metrics.map((m) => [m, metricStats(records, m)])
   );
 
-  // chartDataには実値(__orig)と描画値の両方を持たせる
+  // chartDataには実値(__orig)・生date(__rawDate)・描画値を持たせる
   const chartData = records.map((r) => {
-    const row: Record<string, unknown> = { date: formatDate(r.date) };
+    const row: Record<string, unknown> = { date: formatDate(r.date), __rawDate: r.date };
     for (const m of metrics) {
       const v = r[m];
       if (typeof v === "number" && isFinite(v)) {
@@ -141,6 +146,11 @@ export function InbodyChart({ records, selectedMetrics, marginPct = 10 }: Props)
     );
   }
 
+  // 選択中の生dateをフォーマット済みlabelに変換（ReferenceLine用）
+  const highlightLabel = highlightDate
+    ? (chartData.find((d) => d.__rawDate === highlightDate)?.date as string | undefined)
+    : undefined;
+
   return (
     <div>
       {isNormalized && (
@@ -152,6 +162,19 @@ export function InbodyChart({ records, selectedMetrics, marginPct = 10 }: Props)
         <LineChart
           data={chartData}
           margin={{ top: 8, right: twoAxes ? 64 : 24, left: 0, bottom: 8 }}
+          style={{ cursor: onDateSelect ? "pointer" : undefined }}
+          onClick={(state) => {
+            if (!onDateSelect) return;
+            const label = state?.activeLabel as string | undefined;
+            if (label) {
+              const found = chartData.find((d) => d.date === label);
+              if (found) { onDateSelect(found.__rawDate as string); return; }
+            }
+            const idx = state?.activeIndex;
+            if (typeof idx === "number" && chartData[idx]) {
+              onDateSelect(chartData[idx].__rawDate as string);
+            }
+          }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis
@@ -189,6 +212,17 @@ export function InbodyChart({ records, selectedMetrics, marginPct = 10 }: Props)
 
           <Tooltip content={<CustomTooltip />} />
           <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+
+          {/* 選択中の日付を示す縦ライン */}
+          {highlightLabel && (
+            <ReferenceLine
+              x={highlightLabel}
+              yAxisId="left"
+              stroke="#f97316"
+              strokeWidth={2}
+              strokeDasharray="5 3"
+            />
+          )}
 
           {metrics.map((metric, i) => (
             <Line

@@ -9,7 +9,6 @@ import { DataTable } from "@/components/DataTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { parseCsv } from "@/lib/csvParser";
 import { fetchAllMeasurements, upsertMeasurements } from "@/lib/supabaseStorage";
-import { METRIC_HEADERS } from "@/lib/columnMap";
 import type { ParsedCsvData } from "@/lib/types";
 import dynamic from "next/dynamic";
 
@@ -25,24 +24,37 @@ const InbodyChart = dynamic(
   }
 );
 
+const InbodyMatrixChart = dynamic(
+  () => import("@/components/InbodyMatrixChart").then((m) => ({ default: m.InbodyMatrixChart })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[420px] flex items-center justify-center text-muted-foreground text-sm">
+        マトリックスを読み込み中...
+      </div>
+    ),
+  }
+);
+
 export default function Home() {
   const [csvData, setCsvData] = useState<ParsedCsvData | null>(null);
   const [selectedMetrics, setSelectedMetrics] = useState<Set<string>>(
-    new Set(METRIC_HEADERS.slice(0, 2))
+    new Set(["BMI(kg/m2)", "体脂肪率(%)"])
   );
-  const [displayCount, setDisplayCount] = useState<number>(3);
+  const [displayRange, setDisplayRange] = useState<[number, number]>([0, 0]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [graphMargin, setGraphMargin] = useState<0 | 10 | 20>(10);
+  const [highlightDate, setHighlightDate] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAllMeasurements()
       .then((data) => {
         if (data) {
           setCsvData(data);
-          setDisplayCount(data.records.length);
+          setDisplayRange([0, data.records.length - 1]);
         }
       })
       .catch((e) => setError(e.message))
@@ -54,7 +66,7 @@ export default function Home() {
       const latest = await fetchAllMeasurements();
       if (latest) {
         setCsvData(latest);
-        setDisplayCount(latest.records.length);
+        setDisplayRange([0, latest.records.length - 1]);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "データ再取得に失敗しました");
@@ -83,7 +95,7 @@ export default function Home() {
         const latest = await fetchAllMeasurements();
         if (latest) {
           setCsvData(latest);
-          setDisplayCount(latest.records.length);
+          setDisplayRange([0, latest.records.length - 1]);
         }
       }
     } catch (e) {
@@ -103,7 +115,7 @@ export default function Home() {
       const latest = await fetchAllMeasurements();
       if (latest) {
         setCsvData(latest);
-        setDisplayCount(latest.records.length);
+        setDisplayRange([0, latest.records.length - 1]);
       }
       setSaveStatus(`${parsed.records.length} 件を保存しました`);
     } catch (e) {
@@ -113,7 +125,9 @@ export default function Home() {
     }
   }, []);
 
-  const visibleRecords = csvData ? csvData.records.slice(-displayCount) : [];
+  const visibleRecords = csvData
+    ? csvData.records.slice(displayRange[0], displayRange[1] + 1)
+    : [];
   const oldestRecord = visibleRecords[0];
   const latestRecord = visibleRecords[visibleRecords.length - 1];
 
@@ -124,7 +138,7 @@ export default function Home() {
         <div>
           <div className="flex items-baseline gap-2">
             <h1 className="text-2xl font-bold tracking-tight">Inbody データダッシュボード</h1>
-            <span className="text-xs text-muted-foreground">v{process.env.NEXT_PUBLIC_APP_VERSION}</span>
+            <span className="text-xs text-muted-foreground">v0.3.0</span>
           </div>
           <p className="text-sm text-muted-foreground mt-1">体組成計の測定データを可視化します</p>
         </div>
@@ -163,12 +177,29 @@ export default function Home() {
                 selectedMetrics={selectedMetrics}
                 dateColumn={csvData.dateColumn}
                 marginPct={graphMargin}
+                onDateSelect={setHighlightDate}
+                highlightDate={highlightDate}
               />
             </CardContent>
           </Card>
         )}
 
-        {/* 2. 表示設定（指標選択・スライダー） */}
+        {/* 2. BMI×体脂肪率 マトリックス */}
+        {csvData && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">BMI × 体脂肪率 マトリックス</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <InbodyMatrixChart
+                records={visibleRecords}
+                highlightDate={highlightDate ?? latestRecord?.date}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 3. 表示設定（指標選択・スライダー） */}
         {csvData && (
           <Card>
             <CardHeader className="pb-3">
@@ -182,21 +213,21 @@ export default function Home() {
               />
               <RangeSlider
                 total={csvData.records.length}
-                value={displayCount}
-                onChange={setDisplayCount}
-                oldestDate={oldestRecord?.date ?? ""}
-                latestDate={latestRecord?.date ?? ""}
+                value={displayRange}
+                onChange={setDisplayRange}
+                startDate={csvData.records[displayRange[0]]?.date ?? ""}
+                endDate={csvData.records[displayRange[1]]?.date ?? ""}
               />
             </CardContent>
           </Card>
         )}
 
-        {/* 3. データテーブル */}
+        {/* 4. データテーブル */}
         {csvData && (
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">
-                測定データ一覧（直近 {displayCount} 件）
+                測定データ一覧（{visibleRecords.length} 件）
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -215,7 +246,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* 4. CSVアップロード */}
+        {/* 5. CSVアップロード */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">測定データを追加</CardTitle>
