@@ -138,7 +138,7 @@ export default function Home() {
         <div>
           <div className="flex items-baseline gap-2">
             <h1 className="text-2xl font-bold tracking-tight">Inbody データダッシュボード</h1>
-            <span className="text-xs text-muted-foreground">v0.3.1</span>
+            <span className="text-xs text-muted-foreground">build {process.env.NEXT_PUBLIC_BUILD_NUMBER}</span>
           </div>
           <p className="text-sm text-muted-foreground mt-1">体組成計の測定データを可視化します</p>
         </div>
