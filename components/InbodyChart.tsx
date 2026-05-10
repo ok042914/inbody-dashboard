@@ -178,6 +178,13 @@ export function InbodyChart({ records, selectedMetrics, marginPct = 10, onDateSe
           style={{ cursor: onDateSelect ? "pointer" : undefined }}
           onClick={(state) => {
             if (!onDateSelect) return;
+            // 数値XAxis では activeLabel = dateTs（タイムスタンプ）
+            const ts = state?.activeLabel;
+            if (typeof ts === "number") {
+              const found = chartData.find((d) => (d.dateTs as number) === ts);
+              if (found) { onDateSelect(found.__rawDate as string); return; }
+            }
+            // フォールバック: activeIndex
             const idx = state?.activeIndex;
             if (typeof idx === "number" && chartData[idx]) {
               onDateSelect(chartData[idx].__rawDate as string);
