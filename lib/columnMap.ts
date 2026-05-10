@@ -15,6 +15,7 @@ export const COLUMNS = [
   { csv: "FFMI(kg/m2)",               db: "ffmi" },
   { csv: "FMI(kg/m2)",                db: "fmi" },
   { csv: "SMI(kg/m2)",                db: "smi" },
+  { csv: "SMI(kn/m2)",                db: "smi" },
   { csv: "内臓脂肪レベル",            db: "visceral_fat_level" },
   { csv: "位相角(50kHz)",             db: "phase_angle_50khz" },
   { csv: "部位別筋肉量_右腕(kg)",     db: "arm_r_muscle_kg" },

@@ -1,22 +1,20 @@
+// ===== 設定 =====
 var FOLDER_NAME = "InBody Import";
 var PROCESSED_FOLDER_NAME = "処理済み";
 
-var EDGE_FUNCTION_URL =
-  "https://tleexykarkkkklsgpihy.supabase.co/functions/v1/process-csv-upload";
-var SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsZWV4eWthcmtra2tsc2dwaWh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NTE3OTUsImV4cCI6MjA5MzQyNzc5NX0.SjFgki89K-r5B8IZUJBNFs1HBZIQDE1MB8yscIIarsA";
+// デプロイ後の Vercel URL に変更してください
+// 例: "https://your-app.vercel.app/api/trigger-import"
+var TRIGGER_URL = "https://YOUR_VERCEL_URL/api/trigger-import";
 
-// アプリのボタンから呼び出されるエントリーポイント
-function doPost(e) {
-  var result = checkAndImportNewCsvFiles();
-  return ContentService
-    .createTextOutput(JSON.stringify(result))
-    .setMimeType(ContentService.MimeType.JSON);
-}
+// Vercel の環境変数 TRIGGER_SECRET と同じ値を設定してください
+// （セキュリティのため空文字以外を推奨）
+var TRIGGER_SECRET = "";
+// =================
 
 function checkAndImportNewCsvFiles() {
   var inbox = getFolderByName(FOLDER_NAME);
   if (!inbox) {
+    console.error("フォルダが見つかりません: " + FOLDER_NAME);
     return { error: "フォルダが見つかりません: " + FOLDER_NAME };
   }
 
@@ -24,7 +22,6 @@ function checkAndImportNewCsvFiles() {
   var files = inbox.getFilesByType(MimeType.CSV);
 
   var totalInserted = 0;
-  var totalSkipped = 0;
   var totalErrors = 0;
   var fileCount = 0;
 
@@ -36,14 +33,15 @@ function checkAndImportNewCsvFiles() {
     try {
       var csvText = file.getBlob().getDataAsString("UTF-8");
 
-      var response = UrlFetchApp.fetch(EDGE_FUNCTION_URL, {
+      var headers = { "Content-Type": "application/json" };
+      if (TRIGGER_SECRET) {
+        headers["Authorization"] = "Bearer " + TRIGGER_SECRET;
+      }
+
+      var response = UrlFetchApp.fetch(TRIGGER_URL, {
         method: "post",
-        contentType: "application/json",
-        headers: {
-          "apikey": SUPABASE_ANON_KEY,
-          "Authorization": "Bearer " + SUPABASE_ANON_KEY
-        },
-        payload: JSON.stringify({ csv_text: csvText }),
+        headers: headers,
+        payload: JSON.stringify({ csv_text: csvText, filename: fileName }),
         muteHttpExceptions: true
       });
 
@@ -52,14 +50,14 @@ function checkAndImportNewCsvFiles() {
 
       if (status === 200) {
         totalInserted += result.inserted || 0;
-        totalSkipped += result.skipped || 0;
         totalErrors += result.error_count || 0;
-        console.log(fileName + ": 追加=" + result.inserted + ", スキップ=" + result.skipped);
+        console.log(fileName + ": 追加=" + result.inserted);
+        // 処理済みフォルダへ移動
         processed.addFile(file);
         inbox.removeFile(file);
       } else {
         totalErrors++;
-        console.error(fileName + ": HTTPエラー " + status + " - " + result.error);
+        console.error(fileName + ": HTTPエラー " + status + " - " + JSON.stringify(result));
       }
     } catch (e) {
       totalErrors++;
@@ -67,12 +65,29 @@ function checkAndImportNewCsvFiles() {
     }
   }
 
-  return {
-    file_count: fileCount,
-    inserted: totalInserted,
-    skipped: totalSkipped,
-    error_count: totalErrors
-  };
+  return { file_count: fileCount, inserted: totalInserted, error_count: totalErrors };
+}
+
+// 毎時トリガーを設定する（一度だけ実行すること）
+function setupHourlyTrigger() {
+  // 既存のトリガーをすべて削除
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    ScriptApp.deleteTrigger(t);
+  });
+  // 毎時トリガーを作成
+  ScriptApp.newTrigger("checkAndImportNewCsvFiles")
+    .timeBased()
+    .everyHours(1)
+    .create();
+  console.log("毎時トリガーを設定しました");
+}
+
+// GAS ウェブアプリとしてデプロイした場合のエントリーポイント
+function doPost(e) {
+  var result = checkAndImportNewCsvFiles();
+  return ContentService
+    .createTextOutput(JSON.stringify(result))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function getFolderByName(name) {

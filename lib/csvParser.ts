@@ -31,9 +31,7 @@ export function parseCsv(file: File): Promise<ParsedCsvData> {
           })
           .filter((r) => r.date !== "");
 
-        records.sort(
-          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-        );
+        records.sort((a, b) => a.date.localeCompare(b.date));
 
         resolve({ headers, dateColumn, metricColumns, records });
       },
@@ -48,11 +46,14 @@ function normalizeDate(dateStr: string): string {
 }
 
 export function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return dateStr;
-  const date = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
-  const hasTime = dateStr.includes("T") || dateStr.includes(" ");
-  if (!hasTime) return date;
-  const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  return `${date} ${time}`;
+  // new Date() はタイムゾーン変換を行うため使わない。
+  // Supabase が返す "2026-05-09T15:44:00" を UTC と解釈されると JST で+9時間ずれるため、
+  // 文字列を直接分解して表示する。
+  const tIdx = dateStr.indexOf("T");
+  if (tIdx === -1) {
+    return dateStr.slice(0, 10).replace(/-/g, "/");
+  }
+  const datePart = dateStr.slice(0, tIdx).replace(/-/g, "/");
+  const timePart = dateStr.slice(tIdx + 1, tIdx + 6); // "HH:MM"
+  return `${datePart} ${timePart}`;
 }
